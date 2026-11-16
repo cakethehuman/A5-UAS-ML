@@ -29,16 +29,9 @@ async def predict(file: UploadFile = File(...)):
     image = tf.io.decode_image(image, channels=3, expand_animations=False)
 
     image.set_shape([None, None, 3])
-    image = tf.image.resize(image, [IMG_SIZE, IMG_SIZE], method='area')
-
-    image = tf.expand_dims(image, axis=0)
-
-    predictions = model.predict(image, verbose=0)
-
-    predicted_class = int(np.argmax(predictions[0]))
-    probabilities = predictions[0].tolist()
+    results = model.predict(image)
 
     return {
-        "predicted_class": predicted_class,
-        "probabilities": probabilities
+        "Label" : int(np.argmax(results)),
+        "Probability": results.tolist(),
     }

@@ -111,7 +111,7 @@ with st.expander("Pengaturan Pengembang"):
             st.error(f"Backend gagal terhubung: {error}")
 
 st.write("Pilih citra tulisan tangan yang jelas untuk mendapatkan hasil prediksi terbaik!")
-uploaded_file = st.file_uploader("Unggah Citra", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Unggah Citra", type=["jpg", "jpeg"])
 
 if uploaded_file is not None:
     st.image(uploaded_file, caption="Citra yang akan dikenali", use_container_width=True)
@@ -130,7 +130,9 @@ if uploaded_file is not None:
             label = result["Label"]
             probabilities = result["Probability"]
 
-            predicted_id = class_names[label]
+            # predicted_id = class_names[label]
+            predicted_id = label
+
             confidence = float(probabilities[label])
             class_labels = [str(i) for i in range(len(probabilities))]
 

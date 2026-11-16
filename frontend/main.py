@@ -130,7 +130,7 @@ if st.button("Periksa Koneksi Backend"):
         st.error("Backend gagal terhubung.")
 
 st.write("Pilih citra tulisan tangan yang jelas untuk mendapatkan hasil prediksi terbaik!")
-uploaded_file = st.file_uploader("Unggah Citra", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Unggah Citra", type=["jpg", "jpeg"])
 
 if uploaded_file is not None:
     st.image(uploaded_file, caption="Citra yang akan dikenali", use_container_width=True)
@@ -161,8 +161,11 @@ if uploaded_file is not None:
                         "Silakan unggah citra yang lebih jelas."
                     )
 
-                else:
-                    predicted_student = class_mapping.get(predicted_index)
+            # predicted_id = class_names[label]
+            predicted_id = label
+
+            confidence = float(probabilities[label])
+            class_labels = [str(i) for i in range(len(probabilities))]
 
                     if predicted_student:
                         label = (

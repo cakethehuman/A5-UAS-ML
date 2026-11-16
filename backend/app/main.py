@@ -12,7 +12,7 @@ from pydantic import BaseModel
 app = FastAPI()
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-MODELS_DIR = BASE_DIR / "handwriting_outputs" / "models"
+MODELS_DIR = BASE_DIR / "models"
 
 HEIGHT = 128
 WIDTH = 384
@@ -135,6 +135,115 @@ def get_ink_bbox(gray, margin=CROP_MARGIN):
     x1, y1 = max(0, x-margin), max(0, y-margin)
     x2, y2 = min(W, x+w+margin), min(H, y+h+margin)
     return x1, y1, x2, y2, mask
+
+
+def smart_line_stack(
+    cropped,
+    target_height=HEIGHT,
+    target_width=WIDTH,
+    min_aspect_ratio=2.5,
+    max_rows=4,
+    row_gap_ratio=0.18,
+    fill_value=FILL_VALUE
+):
+    """
+    Memotong baris tulisan tangan yang sangat lebar di celah spasi antar-kata/huruf
+    dan menumpuknya secara vertikal agar resolusi stroke tetap besar saat di-resize ke persegi.
+    """
+    h, w = cropped.shape[:2]
+    if h < 1 or w < 1 or (w / h) < min_aspect_ratio:
+        return cropped
+
+    # Mask tinta sementara untuk mencari lembah spasi (tidak mengubah nilai piksel asli)
+    _, mask = cv2.threshold(cropped, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    col_ink = (mask > 0).sum(axis=0).astype(np.float32)
+
+    # Haluskan profil proyeksi vertikal agar celah kecil di dalam huruf tidak terdeteksi sebagai spasi
+    k = max(3, int(round(h * 0.12)) | 1)
+    smooth_ink = np.convolve(col_ink, np.ones(k) / k, mode="same")
+    ink_threshold = max(1.0, 0.02 * h)
+
+    best_chunks = None
+    best_scale = min(target_width / w, target_height / h)
+    gap = max(4, int(round(h * row_gap_ratio)))
+
+    for n_rows in range(2, max_rows + 1):
+        # Jangan tumpuk terlalu banyak baris jika tinggi sudah mendekati lebar
+        if (w / n_rows) < (h * 0.85):
+            break
+
+        split_points = [0]
+        valid_split = True
+
+        for r in range(1, n_rows):
+            ideal_x = int(round(w * r / n_rows))
+            search_radius = max(10, int(w / (n_rows * 2.5)))
+            left = max(split_points[-1] + max(8, h // 3), ideal_x - search_radius)
+            right = min(w - max(8, h // 3), ideal_x + search_radius)
+
+            if left >= right:
+                valid_split = False
+                break
+
+            window = smooth_ink[left:right]
+            # Cari area kosong/spasi yang paling dekat dengan titik bagi ideal
+            zero_indices = np.where(window <= ink_threshold)[0]
+            if len(zero_indices) > 0:
+                candidates = left + zero_indices
+                best_x = int(candidates[np.argmin(np.abs(candidates - ideal_x))])
+            else:
+                # Fallback: jangan potong jika tinta di titik terendah masih terlalu padat (>15% tinggi)
+                min_idx = int(np.argmin(window))
+                if window[min_idx] > 0.15 * h:
+                    valid_split = False
+                    break
+                best_x = left + min_idx
+
+            split_points.append(best_x)
+
+        if not valid_split:
+            continue
+
+        split_points.append(w)
+
+        # Potong dan trim whitespace horizontal berlebih di ujung tiap baris
+        chunks = []
+        for i in range(len(split_points) - 1):
+            c_left, c_right = split_points[i], split_points[i + 1]
+            sub_mask = mask[:, c_left:c_right]
+            nz = np.where(sub_mask > 0)[1]
+            if len(nz) > 0:
+                pad = max(2, CROP_MARGIN // 2)
+                t_left = max(c_left, c_left + int(nz.min()) - pad)
+                t_right = min(c_right, c_left + int(nz.max()) + 1 + pad)
+                chunks.append(cropped[:, t_left:t_right])
+            else:
+                chunks.append(cropped[:, c_left:c_right])
+
+        stacked_w = max(c.shape[1] for c in chunks)
+        stacked_h = sum(c.shape[0] for c in chunks) + gap * (len(chunks) - 1)
+        scale = min(target_width / stacked_w, target_height / stacked_h)
+
+        # Pilih jumlah baris yang menghasilkan skala stroke paling besar (minimal 15% lebih besar)
+        if scale > best_scale * 1.15:
+            best_scale = scale
+            best_chunks = chunks
+
+    if best_chunks is None:
+        return cropped
+
+    stacked_w = max(c.shape[1] for c in best_chunks)
+    stacked_h = sum(c.shape[0] for c in best_chunks) + gap * (len(best_chunks) - 1)
+    canvas = np.full((stacked_h, stacked_w), fill_value, dtype=np.uint8)
+
+    curr_y = 0
+    for chunk in best_chunks:
+        ch, cw = chunk.shape[:2]
+        # Rata kiri (natural untuk teks tulisan tangan)
+        canvas[curr_y:curr_y + ch, 0:cw] = chunk
+        curr_y += ch + gap
+
+    return canvas
 
 
 def resize_with_white_padding(gray, height=HEIGHT, width=WIDTH):

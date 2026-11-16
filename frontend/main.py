@@ -78,8 +78,8 @@ st.markdown(
     </style>
 
     <div class="hero">
-        <h1>Klasifikasi Tulisan Tangan</h1>
-        <p>Unggah citra tulisan tangan untuk mengenali nomor identitas</p>
+        <h1>Klasifikasi Tulisan Tangan berbasis DINOv2</h1>
+        <p>Unggah citra tulisan tangan untuk mengenali identitas pemilik tulisan tangan!</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -91,24 +91,43 @@ api_url = os.getenv(
     "http://127.0.0.1:8000/predict"
 )
 
-# Developer Settings
-with st.expander("Pengaturan Pengembang"):
-    st.caption("Koneksi Backend")
+# Load NIM Mapping
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+mapping_path = os.path.join(BASE_DIR, "nim_nama.txt")
 
-    health_url = api_url.rsplit("/", 1)[0] + "/health"
+class_mapping = {}
 
-    if st.button("Periksa Koneksi"):
-        try:
-            health_response = requests.get(
-                health_url,
-                timeout=5,
-            )
-            health_response.raise_for_status()
+with open(mapping_path, "r", encoding="utf-8") as file:
+    for line in file:
+        parts = line.strip().split(maxsplit=2)
 
-            st.success("Backend berhasil terhubung!")
+        if len(parts) == 3:
+            index, kode_nim, nama = parts
 
-        except requests.RequestException as error:
-            st.error(f"Backend gagal terhubung: {error}")
+            class_mapping[int(index)] = {
+                "kode_nim": kode_nim,
+                "nama": nama
+            }
+
+# Class Labels
+class_names = [
+    f'{data["kode_nim"]} - {data["nama"]}'
+    for index, data in sorted(class_mapping.items())
+]
+
+# Backend Connection
+if st.button("Periksa Koneksi Backend"):
+    try:
+        health_response = requests.get(
+            api_url.rsplit("/", 1)[0] + "/health",
+            timeout=5,
+        )
+        health_response.raise_for_status()
+
+        st.success("Koneksi berhasil!")
+
+    except requests.RequestException:
+        st.error("Backend gagal terhubung.")
 
 st.write("Pilih citra tulisan tangan yang jelas untuk mendapatkan hasil prediksi terbaik!")
 uploaded_file = st.file_uploader("Unggah Citra", type=["png", "jpg", "jpeg"])
@@ -127,23 +146,56 @@ if uploaded_file is not None:
                 response.raise_for_status()
                 result = response.json()
 
-            label = result["Label"]
-            probabilities = result["Probability"]
+                predicted_index = int(result["Label"])
 
-            predicted_id = class_names[label]
-            confidence = float(probabilities[label])
-            class_labels = [str(i) for i in range(len(probabilities))]
+                probabilities = result["Probability"]
 
+                if probabilities and isinstance(probabilities[0], list):
+                    probabilities = probabilities[0]
+
+                confidence = float(probabilities[predicted_index])
+
+                if predicted_index == 51:
+                    st.warning(
+                        "Tulisan tidak dikenali. "
+                        "Silakan unggah citra yang lebih jelas."
+                    )
+
+                else:
+                    predicted_student = class_mapping.get(predicted_index)
+
+                    if predicted_student:
+                        label = (
+                            f'{predicted_student["kode_nim"]} - '
+                            f'{predicted_student["nama"]}'
+                        )
+                    else:
+                        label = f"Kelas {predicted_index}"
+
+                    st.success("Prediksi berhasil!")
+
+                    left, right = st.columns(2)
+
+                    left.metric("Prediksi Identitas", label)
+                    right.metric("Tingkat Keyakinan", f"{confidence:.1%}")
+                    
             st.markdown(
                 '<div class="notice success">Prediksi Berhasil!</div>',
                 unsafe_allow_html=True,
             )
 
             left, right = st.columns(2)
-            left.metric("Prediksi Identitas:", str(label))
-            right.metric("Tingkat Keyakinan", f"{confidence:.1%}")
+            left.metric(
+                "Prediksi Identitas",
+                f"{label} - {nama}" if nama else label
+            )
 
-            st.subheader("Probabilitas Setiap Kelas")
+            right.metric(
+                "Tingkat Keyakinan",
+                f"{confidence:.1%}"
+            )
+
+            st.subheader("Top 5 Prediksi")
             st.caption(
                 "Nilai probabilitas diperoleh langsung dari hasil prediksi model"
             )
@@ -157,6 +209,14 @@ if uploaded_file is not None:
                     float(value) for value in probabilities
                 ],
             })
+
+            probability_df = (
+                probability_df
+                .sort_values("Probabilitas", ascending=False)
+                .head(5)
+            )
+
+            class_labels = probability_df["Kelas"].tolist()
 
             # Create horizontal bar chart
             chart = (
@@ -185,7 +245,7 @@ if uploaded_file is not None:
                         ),
                     ),
                     tooltip=[
-                        alt.Tooltip("Class:N"),
+                        alt.Tooltip("Kelas:N"),
                         alt.Tooltip(
                             "Probabilitas:Q",
                             format=".2%",
@@ -220,7 +280,7 @@ st.markdown(
         <p style="color: #806F50; font-size: 0.85rem;">
             Cenayang Tulisan Tangan
             <br>
-            Klasifikasi Tulisan Tangan dengan Vision Transformer
+            Klasifikasi Tulisan Tangan berbasis Vision Transformer DINOv2
         </p>
         <p style="color: #A39478; font-size: 0.75rem;">
             Dikembangkan dengan Mata Batin oleh Kelompok A5

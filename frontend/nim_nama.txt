@@ -1,0 +1,51 @@
+0	A220199	Daffa
+1	A240008	Laode
+2	A240029	Kelvin
+3	A240037	David
+4	A240089	Thendy
+5	A250001	Leonardo
+6	A250002	Vaibhav
+7	A250003	Louise
+8	A250005	M. Farel
+9	A250006	Erick
+10	A250007	Nickson
+11	A250008	Michael
+12	A250009	Malvin
+13	A250010	Vincent
+14	A250012	Vianlienra
+15	A250013	Willson
+16	A250014	Georgina
+17	A250015	Denzel
+18	A250016	Angga
+19	A250017	Garini
+20	A250018	Celine
+21	A250019	Chandra
+22	A250020	Putri
+23	A250022	M. Airlangga
+24	A250023	Gabriella
+25	A250024	Catherine
+26	A250025	Felicia M.
+27	A250026	Benizi
+28	A250027	Felicia F.
+29	A250028	Clive
+30	A250029	Felicia A.
+31	A250030	Christoper
+32	A250031	Nicholas
+33	A250032	Yesyurun
+34	A250034	Reyhan
+35	A250035	Dava
+36	A250036	Marcellino
+37	A250037	Fransiska
+38	A250038	Richard
+39	A250039	Charly
+40	A250040	Diandra
+41	A250041	Monica
+42	A250042	Dave
+43	A250043	Nicholas
+44	A250044	Felix
+45	A250046	Natanael
+46	A250048	Randy
+47	A250049	Fernando
+48	A250050	Moses
+49	A250051	Will Wen
+50	A250052	Fedri

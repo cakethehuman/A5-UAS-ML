@@ -26,18 +26,19 @@ async def health():
 async def predict(file: UploadFile = File(...)):
     content = await file.read()
 
-    image = tf.keras.utils.load_img(
-        BytesIO(content),
-        target_size=(IMG_SIZE, IMG_SIZE),
-        color_mode="rgb"
-    )
+    image = tf.io.decode_image(image, channels=3, expand_animations=False)
 
-    image = tf.keras.utils.img_to_array(image)
-    image = np.expand_dims(image, axis=0)
+    image.set_shape([None, None, 3])
+    image = tf.image.resize(image, [IMG_SIZE, IMG_SIZE], method='area')
 
-    results = model.predict(image)[0]
+    image = tf.expand_dims(image, axis=0)
+
+    predictions = model.predict(image, verbose=0)
+
+    predicted_class = int(np.argmax(predictions[0]))
+    probabilities = predictions[0].tolist()
 
     return {
-        "Label" : int(np.argmax(results)),
-        "Probability": results.tolist(),
+        "predicted_class": predicted_class,
+        "probabilities": probabilities
     }

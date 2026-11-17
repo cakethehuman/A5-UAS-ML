@@ -109,12 +109,6 @@ with open(mapping_path, "r", encoding="utf-8") as file:
                 "nama": nama
             }
 
-# Class Labels
-class_names = [
-    f'{data["kode_nim"]} - {data["nama"]}'
-    for index, data in sorted(class_mapping.items())
-]
-
 # Backend Connection
 if st.button("Periksa Koneksi Backend"):
     try:
@@ -155,56 +149,45 @@ if uploaded_file is not None:
 
                 confidence = float(probabilities[predicted_index])
 
-                if predicted_index == 51:
-                    st.warning(
-                        "Tulisan tidak dikenali. "
-                        "Silakan unggah citra yang lebih jelas."
-                    )
+                if confidence < 0.3:
+                    predicted_index = 51
 
-            # predicted_id = class_names[label]
-            predicted_id = label
+            # Unknown handwriting class: show warning and stop here
+            if predicted_index == 51:
+                st.warning(
+                    "Tulisan tidak dikenali. "
+                    "Silakan unggah citra yang lebih jelas."
+                )
+                st.stop()
 
-            confidence = float(probabilities[label])
-            class_labels = [str(i) for i in range(len(probabilities))]
+            # Resolve the predicted student from the mapping
+            predicted_student = class_mapping.get(predicted_index)
 
-                    if predicted_student:
-                        label = (
-                            f'{predicted_student["kode_nim"]} - '
-                            f'{predicted_student["nama"]}'
-                        )
-                    else:
-                        label = f"Kelas {predicted_index}"
+            if predicted_student:
+                label = f'{predicted_student["kode_nim"]} - {predicted_student["nama"]}'
+            else:
+                label = f"Kelas {predicted_index}"
 
-                    st.success("Prediksi berhasil!")
-
-                    left, right = st.columns(2)
-
-                    left.metric("Prediksi Identitas", label)
-                    right.metric("Tingkat Keyakinan", f"{confidence:.1%}")
-                    
             st.markdown(
                 '<div class="notice success">Prediksi Berhasil!</div>',
                 unsafe_allow_html=True,
             )
 
             left, right = st.columns(2)
-            left.metric(
-                "Prediksi Identitas",
-                f"{label} - {nama}" if nama else label
-            )
-
-            right.metric(
-                "Tingkat Keyakinan",
-                f"{confidence:.1%}"
-            )
+            left.metric("Prediksi Identitas", label)
+            right.metric("Tingkat Keyakinan", f"{confidence:.1%}")
 
             st.subheader("Top 5 Prediksi")
             st.caption(
                 "Nilai probabilitas diperoleh langsung dari hasil prediksi model"
             )
 
-            # Prepare probability data
-            class_labels = class_names
+            # Prepare probability data (labels follow the model output length)
+            class_labels = [
+                f'{class_mapping[i]["kode_nim"]} - {class_mapping[i]["nama"]}'
+                if i in class_mapping else f"Kelas {i}"
+                for i in range(len(probabilities))
+            ]
 
             probability_df = pd.DataFrame({
                 "Kelas": class_labels,
@@ -270,7 +253,7 @@ if uploaded_file is not None:
 else:
     st.markdown(
         '<div class="notice">'
-            'Unggah Citra PNG atau JPG untuk memulai ^.^'
+            'Unggah Citra JPG atau JPEG untuk memulai ^.^'
         '</div>',
         unsafe_allow_html=True,
     )
